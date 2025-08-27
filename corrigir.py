@@ -12,12 +12,12 @@ from sklearn.preprocessing import StandardScaler
 #pip install scikit-learn
 #Para lista todas as libs instaladas no python use pip list
 
-
 app = Flask(__name__)
-caminhoBD = config.DB_PATH
+caminhoBd = config.DB_PATH
+rotas = config.rotas
 
 def init_db():
-    with sqlite3.connect(caminhoBD) as conn:
+    with sqlite3.connect(caminhoBd) as conn:
         cursor = conn.cursor()
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS inadimplencia (
@@ -25,7 +25,7 @@ def init_db():
                     inadimplencia REAL
             )       
         ''')
-        conn.execute('''
+        cursor.execute('''
                 CREATE TABLE IF NOT EXISTS selic (
                     mes TEXT PRIMARY KEY,
                     selic_diaria REAL
@@ -34,27 +34,28 @@ def init_db():
         conn.commit()
 vazio = 0
 
-@app.route('/')
+@app.route(rotas[0])
 def index():
-    return render_template_string('''
+    return render_template_string(f'''
         <h1>Upload de dados Economicos</h1>
-        <form action="/upload" method="POST" enctype="multipart/form-data">
+        <form action="{rotas[1]}/upload" method="POST" enctype="multipart/form-data">
             <label for="campo_inadimplencia">Arquivo de inadimplencia (CSV)</label>
             <input name="campo_inadimplencia" type="file"required>
-                                  
             <label for="campo_selic">Arquivo da taxa selic (CSV)</label>
             <input name="campo_selic" type="file" required>
             <input type="submit" value="Fazer Upload">
         </form>
-        <br></br>
+        <br><br>
         <hr>
-        <a href="/consultar">Consultar dados Armazenados</a><br>
-        <a href="/graficos">Visualizar Graficos</a><br>
-        <a href="/editar_inadimplentes"> Editar dados dos inadimplentes</a><br>
-        <a href="/correlacao">Analisar correlação </a><br>
-        <a href="/grafico3d">Observalidade em 3d</a><br>
-''')
-@app.route('/upload', methods=['POST', 'GET'])
+        <a href="{rotas[2]}">consultar">Consultar dados Armazenados</a><br>
+        <a href="{rotas[3]}">Visualizar Graficos</a><br>
+        <a href="{rotas[4]}"> Editar dados dos inadimplencia</a><br>
+        <a href="{rotas[5]}">Analisar correlação </a><br>
+        <a href="{rotas[6]}">Observabilidade em 3d</a><br>
+        <a href="{rotas[7]}">editar selic</a><br>
+    ''')
+
+@app.route(rotas[1], methods=['POST', 'GET'])
 def upload():
     inad_file = request.files.get('campo_inadimplencia')
     selic_file = request.files.get('campo_selic')
@@ -70,32 +71,33 @@ def upload():
     )
     selic_df = pd.read_csv(
         selic_file,
-        seep = ';',
+        sep = ';',
         names = ['data','selic_diaria'],
         header = 0
     )
 
     inad_df['data'] = pd.to_datetime(
         inad_df['data'],
-        format="%d/%m/%Y"
-        )
-
+        format = "%d/%m/%Y"
+    )
     selic_df['data'] = pd.to_datetime(
         selic_df['data'],
-        format="%d/%m/%Y"
-            )
+        format = "%d/%m/%Y"
+        )
+    
     inad_df['mes'] = inad_df['data'].dt.to_period('M').astype(str)
     selic_df['mes'] = selic_df['data'].dt.to_period('M').astype(str)
 
     inad_mensal = inad_df[["mes","inadimplencia"]].drop_duplicates()
     selic_mensal = selic_df.groupby('mes')['selic_diaria'].mean().reset_index()
 
-    with sqlite3.connect(caminhoBD) as conn:
-        inad_df.to_sql('inadimplencia',
+    with sqlite3.connect(caminhoBd) as conn:
+        inad_df.to_sql(
+            'inadimplencia',
             conn,
             if_exists = 'replace',
             index = False
-             )
+        )
         selic_df.to_sql(
             'selic',
             conn,
@@ -106,27 +108,101 @@ def upload():
     
 @app.route('/consultar', methods=['GET','POST'])
 def consultar():
-    return render_template_string('''
-        <h1>Consulta de Tabelas </h1>
+
+    if request.method == "POST":
+        tabela = request.form.get('campo_tabela')
+        if tabela not in ["inadimplencia","selic"]:
+            return jsonify({"Erro":"Tabela Invalida"}), 400
+        with sqlite3.connect(caminhoBd) as conn:
+            df = pd.read_sql_query(f"SELECT * FROM {tabela}", conn)
+        return df.to_html(index=False)
+
+    return render_template_string(f'''
+        <h1> Consulta de Tabelas </h1>
         <form method="POST">
             <label for="campo_tabela"> Escolha uma tabela: </label>
-            <select name=" campo>
-                <option></option>
-                <option></option>
+            <select name="campo_tabela">
+                <option value="inadimplencia"> Inadimplencia </option>
+                <option value="selic"> Taxa Selic </option>
             </select>
-            <input>
+            <input type="submit" value="Consultar">
         </form>
-        <br><a href="/"> Voltar </a>
+        <br><a href="{rotas[0]}"> Voltar </a>
     ''')
 
+@app.route(rotas[3])
+def graficos():
+    with sqlite3.connect(caminhoDb) as conn:
+        inad_df = pd.read_sql_query('SELECT * FROM inadimplencia', conn)
+        selic_df = pd.read_sql_query('SELECT * FROM selic', conn)
 
+    ### Aqui criei um grafico para inadimplencia    
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(
+            x = inad_df['mes'],
+            y = inad_df['inadimplencia'],
+            mode = 'lines+markers',
+            name = 'Inadimplencia'
+    )
+    )
+    #'ggplot2', 'seaborn', 'simple_white','plotly','plotly_white', 'plotly_dark', 'presentatio','xgridoff','ygridoff','gridon','nome'
+    fig1.update_layout(
+        title = 'Evolução da Inadimplencia',
+        xaxis_title = 'Mês',
+        yaxis_title = '%',
+        template = 'plotly_dark'
+    )
 
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(
+            x = selic_df['mes'],
+            y = selic_df['selic_diaria'],
+            mode = 'lines+markers',
+            name = 'selic'
+        )
+    )
+    fig2.update_layout(
+        title = "Media mensal da Selic",
+        xaxis_title = 'Mês',
+        yaxis_title = 'Taxa',
+        template = 'plotly_dark'
+    )   
+    graph_html_1 = fig1.to.html(
+        full_html = False,
+        include_plotlyjs = "cdn"
+    )
+    graph_html_2 = fig1.to.html(
+        full_html = False,
+        include_plotlyjs = "False"
+    )
 
+    return render_template_string('''
+        <html>
+            <head>
+                <title> Graficos Economicos</title>
+                <style>
+                    .container{
+                        display:flex;
+                        justify-content:content:space-around;
+                    }
+                    .graph{
+                            width: 48%;
+                    }
 
-
-
-
-
+                </style>
+            </head>
+            <body>
+                <h1>
+                    <marquee> Graficos Economicos </marquee>
+                </h1>
+                <div class="container">
+                    <div class="graph">{{ reserva01 }}</div>
+                    <div class="graph">{{ reserva02 }}</div>
+                </div>
+            </body>
+        </html>
+    ''', reserva01 = graph_html1, reserva02 = graph_html_2)
+   
 
 
 
@@ -137,4 +213,4 @@ if __name__ == '__main__':
         debug = config.FLASK_DEBUG,
         host = config.FLASK_HOST,
         port = config.FLASK_PORT
-        )
+    )
