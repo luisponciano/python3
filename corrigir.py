@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
 caminhoBd = config.DB_PATH
-rotas = config.rotas
+rotas = config.ROTAS
 
 def init_db():
     with sqlite3.connect(caminhoBd) as conn:
@@ -38,7 +38,7 @@ vazio = 0
 def index():
     return render_template_string(f'''
         <h1>Upload de dados Economicos</h1>
-        <form action="{rotas[1]}/upload" method="POST" enctype="multipart/form-data">
+        <form action="{rotas[1]}" method="POST" enctype="multipart/form-data">
             <label for="campo_inadimplencia">Arquivo de inadimplencia (CSV)</label>
             <input name="campo_inadimplencia" type="file"required>
             <label for="campo_selic">Arquivo da taxa selic (CSV)</label>
@@ -106,7 +106,7 @@ def upload():
         )
         return jsonify({"Mensagem":"Dados cadastrados com sucesso!"})
     
-@app.route('/consultar', methods=['GET','POST'])
+@app.route(rotas[2], methods=['GET','POST'])
 def consultar():
 
     if request.method == "POST":
@@ -132,7 +132,7 @@ def consultar():
 
 @app.route(rotas[3])
 def graficos():
-    with sqlite3.connect(caminhoDb) as conn:
+    with sqlite3.connect(caminhoBd) as conn:
         inad_df = pd.read_sql_query('SELECT * FROM inadimplencia', conn)
         selic_df = pd.read_sql_query('SELECT * FROM selic', conn)
 
@@ -171,10 +171,10 @@ def graficos():
         full_html = False,
         include_plotlyjs = "cdn"
     )
-    graph_html_2 = fig1.to.html(
+    graph_html_2 = fig2.to.html(
         full_html = False,
-        include_plotlyjs = "False"
-    )
+        include_plotlyjs = False
+        )
 
     return render_template_string('''
         <html>
@@ -201,7 +201,7 @@ def graficos():
                 </div>
             </body>
         </html>
-    ''', reserva01 = graph_html1, reserva02 = graph_html_2)
+    ''', reserva01 = graph_html_1, reserva02 = graph_html_2)
    
 
 
