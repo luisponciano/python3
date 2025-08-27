@@ -221,14 +221,14 @@ def editar_inadimplencia():
             conn.commit()
         return jsonify({"Mensagem":f"Valor atualizado para o mes{mes} com sucesso!"})
             
-        return render_templates_string(f'''
+    return render_template_string(f'''
         <h1> Editar dados de Inadimplencia </h1>
         <form method="POST" action="{rotas[4]}">
             <label for="campo_mes"> Mês (Formato AAAA-MM): </label>
             <input name="campo_mes" type="text" name="campos_mes"><br>
                                    
             <label for="campo_valor"> Novo valor de Inadimplencia : </label>
-            <input name="campo_inadimplencia" type="number" step="0.01" required>
+            <input name="campo_valor" type="number" step="0.01" required>
 
             <input type="submit" value="Atualizar"> 
         </form>
@@ -236,11 +236,64 @@ def editar_inadimplencia():
         <a href="{rotas[0]}"> Voltar </a>
 
                                    ''')
+@app.route(rotas[7], methods=['POST','GET'])
+def editar_selic(): 
+    if request.method == 'POST':
+        mes = request.form.get('campo_mes')
+        novo_valor = request.form.get('campo_valor')
+        if not mes or not novo_valor:
+            return jsonify({"Erro":"Informe a data e novo valor"}), 400
+        try:
+            novo_valor = float(novo_valor.replace(',','.'))
+        except ValueError:
+            return jsonify({"Erro":"Valor Invalido"}),
         
+        with sqlite3.connect(caminhoBd) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE selic 
+                SET selic_diaria = ? 
+                WHERE mes = ?
+            ''', (novo_valor, mes))
+            conn.commit()
+        return jsonify({"Mensagem":f"Valor atualizado para o mes{mes} com sucesso para {novo_valor}!"})
 
+    return render_template_string(f'''
+        <h1> Editar dados da Selic </h1>
+        <form method="POST" action="{rotas[7]}">
+            <label for="campo_mes"> Mês (Formato AAAA-MM): </label>
+            <input name="campo_mes" type="text" name="campos_mes"
+            placeholder="2025-01"><br>
+                                   
+            <label for="campo_valor"> Novo valor da Selic : </label>
+            <input name="campo_valor" type="number" step="0.01" required>
 
+            <input type="submit" value="Atualizar"> 
+        </form>
+        <br>
+        <a href="{rotas[0]}"> Voltar </a>
+        ''')
 
+    if request.method == 'POST':
+        mes = request.form.get('campo_mes')
+        novo_valor = request.form.get('campo_valor')
+        try:
+            novo_valor = float(novo_valor)
+        except:
+            return jsonify({"Erro":"Valor Invalido"}),
+        with sqlite3.connect(caminhoBd) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE selic 
+                SET selic_diaria = ? 
+                WHERE mes = ?
+            ''', (novo_valor, mes))
+            conn.commit()
+        return jsonify({"Mensagem":f"Valor atualizado para o mes{mes} com sucesso!"})
+            
+                                   ''')
 
+                                   
 if __name__ == '__main__':
     init_db()
     app.run(
