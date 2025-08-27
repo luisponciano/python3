@@ -47,7 +47,7 @@ def index():
         </form>
         <br><br>
         <hr>
-        <a href="{rotas[2]}">consultar">Consultar dados Armazenados</a><br>
+        <a href="{rotas[2]}">Consultar dados Armazenados</a><br>
         <a href="{rotas[3]}">Visualizar Graficos</a><br>
         <a href="{rotas[4]}"> Editar dados dos inadimplencia</a><br>
         <a href="{rotas[5]}">Analisar correlação </a><br>
@@ -167,11 +167,11 @@ def graficos():
         yaxis_title = 'Taxa',
         template = 'plotly_dark'
     )   
-    graph_html_1 = fig1.to.html(
+    graph_html_1 = fig1.to_html(
         full_html = False,
         include_plotlyjs = "cdn"
     )
-    graph_html_2 = fig2.to.html(
+    graph_html_2 = fig2.to_html(
         full_html = False,
         include_plotlyjs = False
         )
@@ -196,13 +196,47 @@ def graficos():
                     <marquee> Graficos Economicos </marquee>
                 </h1>
                 <div class="container">
-                    <div class="graph">{{ reserva01 }}</div>
-                    <div class="graph">{{ reserva02 }}</div>
+                    <div class="graph">{{ reserva01|safe}}</div>
+                    <div class="graph">{{ reserva02|safe }}</div>
                 </div>
             </body>
         </html>
     ''', reserva01 = graph_html_1, reserva02 = graph_html_2)
-   
+@app.route(rotas[4], methods=['GET','POST'])
+def editar_inadimplencia(): 
+    if request.method == 'POST':
+        mes = request.form.get('campo_mes')
+        novo_valor = request.form.get('campo_valor')
+        try:
+            novo_valor = float(novo_valor)
+        except:
+            return jsonify({"Erro":"Valor Invalido"}),
+        with sqlite3.connect(caminhoBd) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE inadimplencia 
+                SET inadimplencia = ? 
+                WHERE mes = ?
+            ''', (novo_valor, mes))
+            conn.commit()
+        return jsonify({"Mensagem":f"Valor atualizado para o mes{mes} com sucesso!"})
+            
+        return render_templates_string(f'''
+        <h1> Editar dados de Inadimplencia </h1>
+        <form method="POST" action="{rotas[4]}">
+            <label for="campo_mes"> Mês (Formato AAAA-MM): </label>
+            <input name="campo_mes" type="text" name="campos_mes"><br>
+                                   
+            <label for="campo_valor"> Novo valor de Inadimplencia : </label>
+            <input name="campo_inadimplencia" type="number" step="0.01" required>
+
+            <input type="submit" value="Atualizar"> 
+        </form>
+        <br>
+        <a href="{rotas[0]}"> Voltar </a>
+
+                                   ''')
+        
 
 
 
